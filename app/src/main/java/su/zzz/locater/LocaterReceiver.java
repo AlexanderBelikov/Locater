@@ -20,11 +20,20 @@ public class LocaterReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         Log.i(TAG, "onReceive: ");
+        LocationResult result = LocationResult.extractResult(intent);
+        String notificationText = "???:???";
+        if(result != null){
+            Location location = LocationResult.extractResult(intent).getLastLocation();
+            if (location != null){
+                notificationText = location.getLatitude()+" : "+location.getLongitude();
+            }
+        }
+
         Notification notification = new NotificationCompat.Builder(context)
-                .setTicker("New car seat price")
-                .setSmallIcon(android.R.drawable.star_big_on)
-                .setContentTitle("New car seat price")
-                .setContentText("Last car seat price"+DateFormat.getDateTimeInstance().format(new Date()))
+                .setTicker("Locater")
+                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                .setContentTitle(DateFormat.getDateTimeInstance().format(new Date()))
+                .setContentText(notificationText)
                 .build();
         NotificationManagerCompat notificationManagerCompat = NotificationManagerCompat.from(context);
         notificationManagerCompat.notify(0, notification);

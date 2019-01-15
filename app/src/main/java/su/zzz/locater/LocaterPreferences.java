@@ -2,7 +2,6 @@ package su.zzz.locater;
 
 import android.content.Context;
 import android.preference.PreferenceManager;
-import android.util.Log;
 
 public class LocaterPreferences {
     private static final String TAG = LocaterPreferences.class.getSimpleName();

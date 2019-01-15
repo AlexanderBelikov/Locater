@@ -237,8 +237,10 @@ public class DeviceLocationSettingsActivity extends AppCompatActivity implements
         }
     }
     private PendingIntent getPendingIntent() {
-        Intent intent = new Intent(this, LocaterReceiver.class);
-        intent.setAction(LocaterReceiver.ACTION_LOCATION_UPDATE);
-        return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+//        Intent intent = new Intent(this, LocaterReceiver.class);
+//        intent.setAction(LocaterReceiver.ACTION_LOCATION_UPDATE);
+//        return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        Intent intent = new Intent(this, LocaterService.class);
+        return PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 }
