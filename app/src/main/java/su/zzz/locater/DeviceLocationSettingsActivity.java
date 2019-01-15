@@ -1,6 +1,7 @@
 package su.zzz.locater;
 
 import android.Manifest;
+import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
@@ -10,13 +11,14 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.app.NotificationCompat;
+import android.support.v4.app.NotificationManagerCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.CompoundButton;
 import android.widget.Switch;
-import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -24,7 +26,11 @@ import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+
+import java.text.DateFormat;
+import java.util.Date;
 
 public class DeviceLocationSettingsActivity extends AppCompatActivity implements LocationListener {
     private static final String TAG = DeviceLocationSettingsActivity.class.getSimpleName();
@@ -40,7 +46,6 @@ public class DeviceLocationSettingsActivity extends AppCompatActivity implements
     private LocationRequest mLocationRequest;
     private LocationCallback mLocationCallback;
     private FusedLocationProviderClient mFusedLocationClient;
-    private LocationListener mLocationListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,13 +54,21 @@ public class DeviceLocationSettingsActivity extends AppCompatActivity implements
 
         switcherLocaterState = findViewById(R.id.switcherLocaterState);
         LocaterState = LocaterPreferences.getLocationReceiverState(this);
-
-        mLocationListener = new LocationListener() {
+        mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        mLocationCallback = new LocationCallback(){
             @Override
-            public void onLocationChanged(Location location) {
-                Log.i(TAG, "onLocationChanged: ");
+            public void onLocationResult(LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+                Log.i(TAG, "onLocationResult: ");
+                Notification notification = new NotificationCompat.Builder(getApplicationContext())
+                        .setTicker("New car seat price")
+                        .setSmallIcon(android.R.drawable.star_big_on)
+                        .setContentTitle("New car seat price")
+                        .setContentText("Last car seat price"+DateFormat.getDateTimeInstance().format(new Date()))
+                        .build();
+                NotificationManagerCompat notificationManagerCompat = NotificationManagerCompat.from(getApplicationContext());
+                notificationManagerCompat.notify(0, notification);
             }
-
         };
     }
 
@@ -71,19 +84,22 @@ public class DeviceLocationSettingsActivity extends AppCompatActivity implements
                 changeLocaterState();
             }
         });
-        switcherLocaterState.setClickable(false);
+        //switcherLocaterState.setClickable(false);
         if(checkPermission()){
-            createGoogleApiClient();
+//            createGoogleApiClient();
+            createLocationRequest();
         } else {
             requestPermissions();
         }
+//        mFusedLocationClient.requestLocationUpdates(mLocationRequest, getPendingIntent());
+
     }
 
     @Override
     protected void onStop() {
         super.onStop();
         if(mGoogleApiClient != null){
-            mGoogleApiClient.disconnect();
+//            mGoogleApiClient.disconnect();
         }
     }
 
@@ -170,11 +186,13 @@ public class DeviceLocationSettingsActivity extends AppCompatActivity implements
     }
 
     private void createLocationRequest() {
+        Log.i(TAG, "createLocationRequest: ");
         mLocationRequest = new LocationRequest();
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         mLocationRequest.setInterval(5000);
-        mLocationRequest.setFastestInterval(1000);
-        mLocationRequest.setMaxWaitTime(15000);
+//        mLocationRequest.setFastestInterval(1000);
+        mLocationRequest.setSmallestDisplacement(0);
+//        mLocationRequest.setMaxWaitTime(15000);
     }
 
     private void requestLocationUpdates() {
@@ -184,7 +202,9 @@ public class DeviceLocationSettingsActivity extends AppCompatActivity implements
                 Log.i(TAG, "requestLocationUpdates: checkSelfPermission: Fail");
                 return;
             }
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, getPendingIntent());
+//            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, getPendingIntent());
+//            mFusedLocationClient.requestLocationUpdates(mLocationRequest, mLocationCallback, null);
+            mFusedLocationClient.requestLocationUpdates(mLocationRequest,getPendingIntent());
             LocaterPreferences.setLocationReceiverState(this, true);
         } catch (Exception e) {
             Log.e(TAG, "requestLocationUpdates: ", e);
@@ -197,7 +217,9 @@ public class DeviceLocationSettingsActivity extends AppCompatActivity implements
                 Log.i(TAG, "removeLocationUpdates: checkSelfPermission: Fail");
                 return;
             }
-            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, getPendingIntent());
+//            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, getPendingIntent());
+//            mFusedLocationClient.removeLocationUpdates(mLocationCallback);
+            mFusedLocationClient.removeLocationUpdates(getPendingIntent());
             LocaterPreferences.setLocationReceiverState(this, false);
         } catch (Exception e) {
             Log.e(TAG, "removeLocationUpdates: ", e);
@@ -215,7 +237,8 @@ public class DeviceLocationSettingsActivity extends AppCompatActivity implements
         }
     }
     private PendingIntent getPendingIntent() {
-        Intent intent = LocaterService.newIntent(this);
-        return PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        Intent intent = new Intent(this, LocaterReceiver.class);
+        intent.setAction(LocaterReceiver.ACTION_LOCATION_UPDATE);
+        return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 }
