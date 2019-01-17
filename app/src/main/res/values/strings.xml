@@ -1,3 +1,20 @@
 <resources>
     <string name="app_name">Locater</string>
+    <string name="nav_open_drawer">Open navigation drawer</string>
+    <string name="nav_close_driver">Close navigation drawer</string>
+    <string name="title_activity_login">Locater - Sign in</string>
+    <!-- Strings related to login -->
+    <string name="prompt_email">Email</string>
+    <string name="prompt_password">Password</string>
+    <string name="action_sign_in">Sign in</string>
+    <string name="action_sign_in_short">Sign in</string>
+    <string name="error_invalid_email">This email address is invalid</string>
+    <string name="error_invalid_password">This password is too short</string>
+    <string name="error_incorrect_password">This password is incorrect</string>
+    <string name="error_field_required">This field is required</string>
+    <string name="permission_rationale">"Contacts permissions are needed for providing email
+        completions."
+    </string>
+    <string name="action_register">Register</string>
+    <string name="sign_out">Sign out</string>
 </resources>
