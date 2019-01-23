@@ -10,6 +10,7 @@ import android.os.Build;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.design.widget.NavigationView;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
@@ -19,6 +20,7 @@ import android.os.Bundle;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.CompoundButton;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -48,6 +50,9 @@ public class LocaterActivity extends AppCompatActivity implements NavigationView
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
     };
+    private static final int REQUEST_LOCATION_PERMISSIONS = 1059;
+    public static boolean activityVisible = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -80,12 +85,53 @@ public class LocaterActivity extends AppCompatActivity implements NavigationView
             @Override
             public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
                 Log.i(TAG, "onCheckedChanged: ");
+                if(b &&!checkPermission(compoundButton.getContext())){
+                    requestPermissions();
+                    return;
+                }
                 LocaterService.setLocationUpdates(getApplicationContext(), b);
             }
         });
 
         if(!LocaterPreferences.getLocaterAdminUid(getApplicationContext()).isEmpty() && LocaterPreferences.getLocationReceiverState(getApplicationContext())){
-            LocaterService.setLocationUpdates(getApplicationContext(), true);
+            if(!checkPermission(this)){
+                requestPermissions();
+            } else {
+                LocaterService.setLocationUpdates(getApplicationContext(), true);
+            }
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        activityVisible = false;
+    }
+
+    @Override
+    protected void onPostResume() {
+        super.onPostResume();
+        activityVisible = true;
+    }
+
+    public static boolean isActivityVisible() {
+        return activityVisible;
+    }
+
+    private void requestPermissions() {
+        Log.i(TAG, "requestPermissions: ");
+        boolean shouldShowRequestPermission = ActivityCompat.shouldShowRequestPermissionRationale(this, LOCATION_PERMISSIONS[0]);
+        if(shouldShowRequestPermission){
+            Snackbar.make(findViewById(R.id.drawer_layout), "Location permissions", Snackbar.LENGTH_INDEFINITE)
+                    .setAction("Allow", new View.OnClickListener() {
+                        @Override
+                        public void onClick(View view) {
+                            requestPermissions(LOCATION_PERMISSIONS, REQUEST_LOCATION_PERMISSIONS);
+                        }
+                    })
+                    .show();
+        } else {
+            requestPermissions(LOCATION_PERMISSIONS, REQUEST_LOCATION_PERMISSIONS);
         }
     }
 
