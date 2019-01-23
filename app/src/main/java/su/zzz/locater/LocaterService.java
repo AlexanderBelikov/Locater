@@ -2,6 +2,7 @@ package su.zzz.locater;
 
 import android.app.IntentService;
 import android.app.Notification;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.location.Location;
@@ -14,7 +15,9 @@ import android.support.v4.app.NotificationManagerCompat;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -54,32 +57,54 @@ public class LocaterService extends IntentService {
         LocationResult result = LocationResult.extractResult(intent);
         String notificationText = "???:???";
         if(result != null){
-            Location location = LocationResult.extractResult(intent).getLastLocation();
-            if (location != null){
-                notificationText = location.getLatitude()+" : "+location.getLongitude();
+            Location lastLocation = LocationResult.extractResult(intent).getLastLocation();
+            if (lastLocation != null){
+                notificationText = lastLocation.getLatitude()+" : "+lastLocation.getLongitude();
+//                locationsMap.put(location.getTime(), new GeoPoint(location.getLatitude(),location.getLongitude()));
+            }
+            List<Location> locations = result.getLocations();
+            for (Location location:locations){
                 locationsMap.put(String.valueOf(location.getTime()), new GeoPoint(location.getLatitude(),location.getLongitude()));
             }
+            Log.i(TAG, "onHandleIntent: size: "+result.getLocations().size());
+
+        }
+        if(locationsMap.isEmpty()){
+            return;
         }
         Log.i(TAG, "notificationText: "+notificationText);
-        Notification notification = new NotificationCompat.Builder(this)
-                .setTicker("Locater")
-                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-                .setContentTitle(DateFormat.getDateTimeInstance().format(new Date()))
-                .setContentText(notificationText)
-                .build();
-        NotificationManagerCompat notificationManagerCompat = NotificationManagerCompat.from(this);
-        notificationManagerCompat.notify(0, notification);
-
+        locationsMap.put("device_model", Build.DISPLAY);
+        try {
+            FirebaseFirestore.getInstance()
+                    .collection("admins").document(LocaterPreferences.getLocaterAdminUid(getApplicationContext()))
+                    .collection("devices").document(Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID))
+//                    .set(locationsMap, SetOptions.merge())
+                    .set(locationsMap)
+                    .addOnSuccessListener(new OnSuccessListener<Void>() {
+                        @Override
+                        public void onSuccess(Void aVoid) {
+                            Log.i(TAG, "onSuccess: ");
+                        }
+                    })
+                    .addOnFailureListener(new OnFailureListener() {
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            Log.i(TAG, "onFailure: ");
+                        }
+                    });
+        } catch (Exception e) {
+            Log.e(TAG, "Exception: ", e);
+        }
 //        final FirebaseUser mUser = FirebaseAuth.getInstance().getCurrentUser();
 //        if(mUser == null){
 //            Log.i(TAG, "onHandleIntent: mUser == null");
 //        } else {
 //            Log.i(TAG, "onHandleIntent: getUid: "+mUser.getUid());
 //        }
+
+        /*
         FirebaseFirestore db = FirebaseFirestore.getInstance();
         DocumentReference deviceReference = db.collection("Devices").document(Build.DISPLAY);
-
-
 
         try {
             deviceReference.set(locationsMap, SetOptions.merge())
@@ -98,6 +123,7 @@ public class LocaterService extends IntentService {
         } catch (Exception e) {
             Log.e(TAG, "Exception: ", e);
         }
+        */
                 //.doc(user_id).set({foo:'bar'}, {merge: true})
 //        DocumentReference deviceReference = db.collection("Devices").document("Locations");
 //        deviceReference.get().addOnCompleteListener(new OnCompleteListener<DocumentSnapshot>() {
@@ -126,8 +152,73 @@ public class LocaterService extends IntentService {
 //        FirebaseFirestore db = FirebaseFirestore.getInstance();
     }
 
-    @Override
-    public void onCreate() {
-        super.onCreate();
+    public static void setLocationUpdates(Context context, boolean isOn) {
+        Log.i(TAG, "setLocationUpdates: "+isOn);
+        Intent intent = LocaterService.newIntent(context);
+        PendingIntent pendingIntent = PendingIntent.getService(context, 0, intent, 0);
+        LocationRequest mLocationRequest;
+        mLocationRequest = new LocationRequest();
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        mLocationRequest.setInterval(5000);
+//        mLocationRequest.setFastestInterval(1000);
+        mLocationRequest.setSmallestDisplacement(0);
+//        mLocationRequest.setMaxWaitTime(15000);
+
+        if(isOn){
+            String adminUid = LocaterPreferences.getLocaterAdminUid(context);
+            if(adminUid.isEmpty()){
+                Log.i(TAG, "setLocationUpdates: adminUid.isEmpty");
+                return;
+            }
+            try {
+                if (!LocaterActivity.checkPermission(context)) {
+                    Log.i(TAG, "checkSelfPermission: Fail");
+                    return;
+                }
+                LocationServices.getFusedLocationProviderClient(context).requestLocationUpdates(mLocationRequest,pendingIntent);
+                LocaterPreferences.setLocationReceiverState(context, true);
+            } catch (Exception e) {
+                Log.e(TAG, "requestLocationUpdates: ", e);
+            }
+        } else {
+            try {
+                if (!LocaterActivity.checkPermission(context)) {
+                    Log.i(TAG, "checkSelfPermission: Fail");
+                    return;
+                }
+                LocationServices.getFusedLocationProviderClient(context).removeLocationUpdates(pendingIntent);
+                LocaterPreferences.setLocationReceiverState(context, false);
+            } catch (Exception e) {
+                Log.e(TAG, "removeLocationUpdates: ", e);
+            }
+        }
+    }
+    public static void initAdmin(Context context) {
+        Log.i(TAG, "initAdmin: ");
+        Map<String, Object> adminDevices = new HashMap<>();
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        String adminUid = FirebaseAuth.getInstance().getCurrentUser().getUid();
+        DocumentReference adminReference = db.collection("admins").document(adminUid);
+
+        adminReference.set(adminDevices, SetOptions.merge());
+//        DocumentReference deviceReference = adminReference.collection("devices").document(Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID));
+//        try {
+//            deviceReference.set(new HashMap<>(), SetOptions.merge())
+//                    .addOnSuccessListener(new OnSuccessListener<Void>() {
+//                        @Override
+//                        public void onSuccess(Void aVoid) {
+//                            Log.i(TAG, "onSuccess: ");
+//                        }
+//                    })
+//                    .addOnFailureListener(new OnFailureListener() {
+//                        @Override
+//                        public void onFailure(@NonNull Exception e) {
+//                            Log.i(TAG, "onFailure: ");
+//                        }
+//                    });
+//        } catch (Exception e) {
+//            Log.e(TAG, "Exception: ", e);
+//        }
+
     }
 }

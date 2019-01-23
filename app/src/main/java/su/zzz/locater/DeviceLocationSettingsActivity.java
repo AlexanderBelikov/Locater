@@ -85,7 +85,7 @@ public class DeviceLocationSettingsActivity extends AppCompatActivity implements
             }
         });
         //switcherLocaterState.setClickable(false);
-        if(checkPermission()){
+        if(checkPermission(this)){
 //            createGoogleApiClient();
             createLocationRequest();
         } else {
@@ -132,9 +132,9 @@ public class DeviceLocationSettingsActivity extends AppCompatActivity implements
         Log.i(TAG, "onLocationChanged: ");
     }
 
-    private boolean checkPermission() {
-        boolean result = ((ActivityCompat.checkSelfPermission(this, LOCATION_PERMISSIONS[0]) == PackageManager.PERMISSION_GRANTED
-                && ActivityCompat.checkSelfPermission(this, LOCATION_PERMISSIONS[1]) == PackageManager.PERMISSION_GRANTED));
+    private boolean checkPermission(Context context) {
+        boolean result = ((ActivityCompat.checkSelfPermission(context, LOCATION_PERMISSIONS[0]) == PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(context, LOCATION_PERMISSIONS[1]) == PackageManager.PERMISSION_GRANTED));
         return result;
     }
 
@@ -198,7 +198,7 @@ public class DeviceLocationSettingsActivity extends AppCompatActivity implements
     private void requestLocationUpdates() {
         Log.i(TAG, "requestLocationUpdates: ");
         try {
-            if (!checkPermission()) {
+            if (!checkPermission(this)) {
                 Log.i(TAG, "requestLocationUpdates: checkSelfPermission: Fail");
                 return;
             }
@@ -213,7 +213,7 @@ public class DeviceLocationSettingsActivity extends AppCompatActivity implements
     private void removeLocationUpdates(){
         Log.i(TAG, "removeLocationUpdates: ");
         try {
-            if (!checkPermission()) {
+            if (!checkPermission(this)) {
                 Log.i(TAG, "removeLocationUpdates: checkSelfPermission: Fail");
                 return;
             }

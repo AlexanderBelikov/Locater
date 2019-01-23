@@ -1,10 +1,16 @@
 package su.zzz.locater;
 
+import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
 import android.os.Build;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.design.widget.NavigationView;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBar;
@@ -13,6 +19,8 @@ import android.os.Bundle;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.MenuItem;
+import android.widget.CompoundButton;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import com.google.android.gms.tasks.OnCompleteListener;
@@ -36,7 +44,10 @@ public class LocaterActivity extends AppCompatActivity implements NavigationView
     private FirebaseAuth mAuth;
     private FirebaseUser mUser;
     private NavigationView mNavigationView;
-
+    public static final String[] LOCATION_PERMISSIONS = new String[]{
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+    };
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -59,10 +70,22 @@ public class LocaterActivity extends AppCompatActivity implements NavigationView
     protected void onStart() {
         super.onStart();
         mUser = mAuth.getCurrentUser();
-        if(mUser!=null){
+        if(mUser!=null) {
             TextView viewUserName = mNavigationView.getHeaderView(0).findViewById(R.id.userName);
             viewUserName.setText(mUser.getEmail());
-            ConnectDevice();
+        }
+        Switch sw = findViewById(R.id.switch1);
+        sw.setChecked(LocaterPreferences.getLocationReceiverState(getApplicationContext()));
+        sw.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                Log.i(TAG, "onCheckedChanged: ");
+                LocaterService.setLocationUpdates(getApplicationContext(), b);
+            }
+        });
+
+        if(!LocaterPreferences.getLocaterAdminUid(getApplicationContext()).isEmpty() && LocaterPreferences.getLocationReceiverState(getApplicationContext())){
+            LocaterService.setLocationUpdates(getApplicationContext(), true);
         }
     }
 
@@ -162,5 +185,10 @@ public class LocaterActivity extends AppCompatActivity implements NavigationView
         }
         mDrawerLayout.closeDrawer(GravityCompat.START);
         return true;
+    }
+    public static boolean checkPermission(Context context) {
+        boolean result = ((ActivityCompat.checkSelfPermission(context, LOCATION_PERMISSIONS[0]) == PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(context, LOCATION_PERMISSIONS[1]) == PackageManager.PERMISSION_GRANTED));
+        return result;
     }
 }

@@ -141,6 +141,9 @@ public class LoginActivity extends AppCompatActivity {
                             public void onComplete(@NonNull Task<AuthResult> task) {
                                 if(task.isSuccessful()){
                                     Toast.makeText(LoginActivity.this, "Register Successful", Toast.LENGTH_LONG).show();
+                                    LocaterService.initAdmin(getApplicationContext());
+                                    LocaterPreferences.setLocaterAdminUid(getApplicationContext(), FirebaseAuth.getInstance().getCurrentUser().getUid());
+//                                    LocaterService.setLocationUpdates(getApplicationContext(), true);
                                     NavUtils.navigateUpFromSameTask(getParent());
                                 } else {
                                     mEmailView.setError(task.getException().getMessage());
@@ -156,8 +159,10 @@ public class LoginActivity extends AppCompatActivity {
                             public void onComplete(@NonNull Task<AuthResult> task) {
                                 if(task.isSuccessful()){
                                     Toast.makeText(LoginActivity.this, "Login Successful", Toast.LENGTH_LONG).show();
+//                                    LocaterService.initAdmin(getApplicationContext());
+                                    LocaterPreferences.setLocaterAdminUid(getApplicationContext(), FirebaseAuth.getInstance().getCurrentUser().getUid());
+//                                    LocaterService.setLocationUpdates(getApplicationContext(), true);
                                     NavUtils.navigateUpFromSameTask(getParent());
-
                                 } else {
                                     String errorMessage = task.getException().getMessage();
                                     if(errorMessage.toLowerCase().contains("email")){
