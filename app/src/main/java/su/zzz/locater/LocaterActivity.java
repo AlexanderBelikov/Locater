@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.PorterDuff;
 import android.net.ConnectivityManager;
 import android.os.Build;
 import android.provider.Settings;
@@ -12,6 +13,7 @@ import android.support.annotation.NonNull;
 import android.support.design.widget.NavigationView;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.app.Fragment;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBar;
@@ -19,24 +21,19 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.CompoundButton;
 import android.widget.Switch;
-import android.widget.TextView;
 
 import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.CollectionReference;
-import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
-import com.google.firebase.firestore.SetOptions;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -46,6 +43,9 @@ public class LocaterActivity extends AppCompatActivity implements NavigationView
     private FirebaseAuth mAuth;
     private FirebaseUser mUser;
     private NavigationView mNavigationView;
+    private Menu mNavigationViewMenu;
+    private Switch locaterState;
+    private Map<Integer, String> itemsDeviceId;
     public static final String[] LOCATION_PERMISSIONS = new String[]{
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -60,14 +60,22 @@ public class LocaterActivity extends AppCompatActivity implements NavigationView
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        locaterState = toolbar.findViewById(R.id.locater_state);
+        locaterState.setChecked(LocaterPreferences.getLocationReceiverState(this));
+        locaterState.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                LocaterService.setLocationUpdates(compoundButton.getContext(), b);
+            }
+        });
         ActionBar actionBar = getSupportActionBar();
         actionBar.setDisplayHomeAsUpEnabled(true);
         actionBar.setHomeAsUpIndicator(R.drawable.ic_action_name);
         mDrawerLayout = findViewById(R.id.drawer_layout);
         mNavigationView = findViewById(R.id.navigationView);
         mNavigationView.setNavigationItemSelectedListener(this);
-
-
+        mNavigationViewMenu = mNavigationView.getMenu();
+        itemsDeviceId = new HashMap<>();
         mAuth = FirebaseAuth.getInstance();
     }
 
@@ -76,22 +84,8 @@ public class LocaterActivity extends AppCompatActivity implements NavigationView
         super.onStart();
         mUser = mAuth.getCurrentUser();
         if(mUser!=null) {
-            TextView viewUserName = mNavigationView.getHeaderView(0).findViewById(R.id.userName);
-            viewUserName.setText(mUser.getEmail());
+            updateUI();
         }
-        Switch sw = findViewById(R.id.switch1);
-        sw.setChecked(LocaterPreferences.getLocationReceiverState(getApplicationContext()));
-        sw.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
-                Log.i(TAG, "onCheckedChanged: ");
-                if(b &&!checkPermission(compoundButton.getContext())){
-                    requestPermissions();
-                    return;
-                }
-                LocaterService.setLocationUpdates(getApplicationContext(), b);
-            }
-        });
 
         if(!LocaterPreferences.getLocaterAdminUid(getApplicationContext()).isEmpty() && LocaterPreferences.getLocationReceiverState(getApplicationContext())){
             if(!checkPermission(this)){
@@ -100,6 +94,37 @@ public class LocaterActivity extends AppCompatActivity implements NavigationView
                 LocaterService.setLocationUpdates(getApplicationContext(), true);
             }
         }
+//        LocaterService.setLocationUpdates(getApplicationContext(), true);
+    }
+
+    private void updateUI() {
+        mNavigationViewMenu.findItem(R.id.user_email).setTitle(mUser.getEmail());
+        FirebaseFirestore.getInstance()
+                .collection("admins").document(mUser.getUid())
+                .collection("devices")
+                .get()
+                .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                    @Override
+                    public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                        if(task.isSuccessful()){
+                            mNavigationViewMenu.removeGroup(R.id.devices_group);
+                            itemsDeviceId.clear();
+                            int itemDeviceId = 100;
+                            for(QueryDocumentSnapshot document: task.getResult()){
+                                itemDeviceId++;
+                                itemsDeviceId.put(itemDeviceId, document.getId());
+                                if(document.getId().equals(Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID))){
+                                    mNavigationViewMenu.add(R.id.devices_group, itemDeviceId, 0, document.get("device_model").toString()).setIcon(R.drawable.ic_main_phone);
+
+                                } else {
+                                    mNavigationViewMenu.add(R.id.devices_group, itemDeviceId, 1, document.get("device_model").toString()).setIcon(R.drawable.ic_phone);
+                                }
+                            }
+                        } else {
+                            Log.e(TAG, "OnCompleteListener: ", task.getException());
+                        }
+                    }
+                });
     }
 
     @Override
@@ -135,74 +160,6 @@ public class LocaterActivity extends AppCompatActivity implements NavigationView
         }
     }
 
-    private void ConnectDevice() {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-        String deviceAndroidId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
-        String deviceId = Build.ID+"-"+deviceAndroidId;
-
-        CollectionReference refDevices = db.collection(deviceId);
-        Map<String, Object> deviceSettings = new HashMap<>();
-        deviceSettings.put("manager", mUser.getUid());
-        deviceSettings.put("device_id", deviceAndroidId);
-
-        try {
-            refDevices.document("settings").set(deviceSettings, SetOptions.merge())
-                    .addOnSuccessListener(new OnSuccessListener<Void>() {
-                        @Override
-                        public void onSuccess(Void aVoid) {
-                            Log.i(TAG, "onSuccess: ");
-                        }
-                    })
-                    .addOnFailureListener(new OnFailureListener() {
-                        @Override
-                        public void onFailure(@NonNull Exception e) {
-                            Log.i(TAG, "onFailure: ");
-                        }
-                    });
-        } catch (Exception e) {
-            Log.e(TAG, "Exception: ", e);
-        }
-
-        Map<String, Object> deviceLocations = new HashMap<>();
-//        deviceLocations.put("location", "zzz");
-
-        try {
-            refDevices.document("locations").set(deviceLocations, SetOptions.merge())
-                    .addOnSuccessListener(new OnSuccessListener<Void>() {
-                        @Override
-                        public void onSuccess(Void aVoid) {
-                            Log.i(TAG, "onSuccess: ");
-                        }
-                    })
-                    .addOnFailureListener(new OnFailureListener() {
-                        @Override
-                        public void onFailure(@NonNull Exception e) {
-                            Log.i(TAG, "onFailure: ");
-                        }
-                    });
-        } catch (Exception e) {
-            Log.e(TAG, "Exception: ", e);
-        }
-    }
-
-    private void OnFirebaseAuth() {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-        CollectionReference refDevices = db.collection("Devices");
-        refDevices.whereEqualTo("Manager", mUser.getUid())
-                .get()
-                .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-                    @Override
-                    public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                        if (task.isSuccessful()) {
-                            Log.i(TAG, "onComplete: "+task.isSuccessful());
-                        } else {
-                            Log.d(TAG, "Error getting documents: ", task.getException());
-                        }
-                    }
-                });
-//        DocumentReference deviceReference = db.collection("Devices").document(Build.DISPLAY);
-    }
-
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()){
@@ -225,13 +182,30 @@ public class LocaterActivity extends AppCompatActivity implements NavigationView
                 mAuth.signOut();
                 mUser = null;
             }
+            case R.id.user_email : {
+                return true;
+            }
             default: {
+                String deviceId = itemsDeviceId.get(menuItem.getItemId());
+                Log.i(TAG, "onNavigationItemSelected: "+deviceId);
+                if(!deviceId.isEmpty()){
+                    onDeviceSelected(deviceId);
+                }
 
             }
         }
         mDrawerLayout.closeDrawer(GravityCompat.START);
         return true;
     }
+
+    private void onDeviceSelected(String deviceId) {
+        Fragment fragment = DeviceFragment.newInstance(deviceId);
+        getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.fragment_container, fragment)
+                .commit();
+    }
+
     public static boolean checkPermission(Context context) {
         boolean result = ((ActivityCompat.checkSelfPermission(context, LOCATION_PERMISSIONS[0]) == PackageManager.PERMISSION_GRANTED
                 && ActivityCompat.checkSelfPermission(context, LOCATION_PERMISSIONS[1]) == PackageManager.PERMISSION_GRANTED));

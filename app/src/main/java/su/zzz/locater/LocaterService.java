@@ -52,6 +52,7 @@ public class LocaterService extends IntentService {
     @Override
     protected void onHandleIntent(@Nullable Intent intent) {
         Log.i(TAG, "onHandleIntent: ");
+        Map<String, Object> deviceInfo = new HashMap<>();
         Map<String, Object> locationsMap = new HashMap<>();
 
         LocationResult result = LocationResult.extractResult(intent);
@@ -60,25 +61,30 @@ public class LocaterService extends IntentService {
             Location lastLocation = LocationResult.extractResult(intent).getLastLocation();
             if (lastLocation != null){
                 notificationText = lastLocation.getLatitude()+" : "+lastLocation.getLongitude();
+                deviceInfo.put("last_location_point", new GeoPoint(lastLocation.getLatitude(),lastLocation.getLongitude()));
+                deviceInfo.put("last_location_time", lastLocation.getTime());
+            } else {
+                return;
             }
-            List<Location> locations = result.getLocations();
-            for (Location location:locations){
-                locationsMap.put(String.valueOf(location.getTime()), new GeoPoint(location.getLatitude(),location.getLongitude()));
-            }
+//            List<Location> locations = result.getLocations();
+//            for (Location location:locations){
+//                locationsMap.put(String.valueOf(location.getTime()), new GeoPoint(location.getLatitude(),location.getLongitude()));
+//            }
             Log.i(TAG, "onHandleIntent: size: "+result.getLocations().size());
 
         }
-        if(locationsMap.isEmpty()){
+        if(deviceInfo.isEmpty()){
             return;
         }
         Log.i(TAG, "notificationText: "+notificationText);
-        locationsMap.put("device_model", Build.DISPLAY);
+        deviceInfo.put("device_model", Build.DISPLAY);
+//        deviceInfo.put("locations", locationsMap);
         try {
             FirebaseFirestore.getInstance()
                     .collection("admins").document(LocaterPreferences.getLocaterAdminUid(getApplicationContext()))
                     .collection("devices").document(Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID))
 //                    .set(locationsMap, SetOptions.merge())
-                    .set(locationsMap)
+                    .set(deviceInfo)
                     .addOnSuccessListener(new OnSuccessListener<Void>() {
                         @Override
                         public void onSuccess(Void aVoid) {
@@ -103,7 +109,7 @@ public class LocaterService extends IntentService {
         LocationRequest mLocationRequest;
         mLocationRequest = new LocationRequest();
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        mLocationRequest.setInterval(5000);
+        mLocationRequest.setInterval(30000);
 //        mLocationRequest.setFastestInterval(1000);
         mLocationRequest.setSmallestDisplacement(0);
 //        mLocationRequest.setMaxWaitTime(15000);
